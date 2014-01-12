@@ -11,22 +11,18 @@ func connect() (redis.Conn, error) {
 	return redis.Dial("tcp", ":6379")
 }
 
-const (
-	noTimeout = 0
-)
-
 func ListenForJobs(jobs chan Job) {
+	// connect to redis
 	conn, err := connect()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
-
 	fmt.Println("Waiting for jobs...")
 
 	for {
 		// pop a value from the queue
-		reply, err := redis.Values(conn.Do("blpop", "x:queue:default", noTimeout))
+		reply, err := redis.Values(conn.Do("blpop", "x:queue:default", 0))
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -38,6 +34,7 @@ func ListenForJobs(jobs chan Job) {
 			log.Println(err)
 		}
 
+		// parse the json
 		job := new(Job)
 		bytes := []byte(body)
 		err = json.Unmarshal(bytes, &job)
@@ -45,24 +42,30 @@ func ListenForJobs(jobs chan Job) {
 			log.Print(err)
 		}
 
+		// stuff it down the channel
 		fmt.Printf("Found job: %s(%s)\n", job.Class, job.Jid)
 		jobs <- *job
 	}
 }
 
+type WorkerFactory func(Job) Worker
+
 func PerformJobs(jobs chan Job) {
-	workers := make(map[string]func(Job) Worker)
+	// keep a map of worker factories by name
+	workers := make(map[string]WorkerFactory)
 
 	// register our worker
-	workers["PlainOldRuby"] = func(job Job) Worker {
-		h := Hardwork{&job, "fail", 0}
-		return &h
-	}
+	workers["PlainOldRuby"] = NewHardwork
 
 	for {
+		// wait for a job
 		job := <-jobs
-		createWorker := workers[job.Class]
-		worker := createWorker(job)
+
+		// create an instance of the appropriate worker
+		factory := workers[job.Class]
+		worker := factory(job)
+
+		// do the work asynchronously
 		go worker.Perform()
 	}
 }
@@ -72,7 +75,6 @@ func main() {
 	go ListenForJobs(jobs)
 	go PerformJobs(jobs)
 
-	// wait for user input
 	fmt.Println("Press Enter to Exit.")
 	var userInput string
 	fmt.Scanln(&userInput)
