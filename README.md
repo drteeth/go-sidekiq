@@ -7,7 +7,7 @@ Pulls sidekiq jobs out of redis and runs them.
 It can't. You have to port your jobs to Go.
 
 ## What the eff use is it then?
-Probably not much tbh. It lets you keep the same calling semantics in your ruby code.  Once finished it would also respect the queuing/priority semantics of Sidekiq.
+Probably not much tbh. It lets you keep the same calling semantics in your ruby code.  Once finished it would also respect the queuing/priority semantics of sidekiq that you know and love.
 
 ## Usage:
 Given a redis server at 127.0.0.1:6379
