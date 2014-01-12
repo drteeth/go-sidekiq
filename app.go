@@ -1,9 +1,9 @@
 package main
 
 import (
-	// "encoding/json"
-	// "fmt"
-	// "github.com/garyburd/redigo/redis"
+	"encoding/json"
+	"fmt"
+	"github.com/garyburd/redigo/redis"
 	"log"
 )
 
@@ -17,25 +17,21 @@ import (
 // }
 
 type Job struct {
-	Retry       bool     `json:retry`
-	Queue       string   `json:queue`
-	Class       string   `json:class`
-	Args        []string `json:args`
-	Jid         string   `json:jid`
-	Enqueued_at float64  `json:enqueued_at` //float32??
+	Retry       bool          `json:retry`
+	Queue       string        `json:queue`
+	Class       string        `json:class`
+	Args        []interface{} `json:args`
+	Jid         string        `json:jid`
+	Enqueued_at float64       `json:enqueued_at` //float32??
 }
 
-func connect() (redis.PubSubConn, error) {
-	var conn redis.PubSubConn
-	c, err := redis.Dial("tcp", ":6379")
-
-	if err != nil {
-		return conn, err
-	}
-
-	conn = redis.PubSubConn{c}
-	return conn, nil
+func connect() (redis.Conn, error) {
+	return redis.Dial("tcp", ":6379")
 }
+
+const (
+	noTimeout = 0
+)
 
 func main() {
 	// Connect
@@ -43,6 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer conn.Close()
 
 	// connect to redis
 	// watch the user provided queue (or the default queue)
@@ -50,4 +47,29 @@ func main() {
 	// put failing jobs back and decrement
 
 	// use blpop to get items
+	// pull from x:queue:default
+	// default queue ^^
+	for {
+		fmt.Println("waiting for redis...")
+		reply, err := redis.Values(conn.Do("blpop", "x:queue:default", 0))
+
+		if err != nil {
+			log.Printf("xxx %s\n", err)
+		}
+
+		var queue string
+		var body string
+		if _, err := redis.Scan(reply, &queue, &body); err != nil {
+			log.Println(err)
+		}
+
+		fmt.Println(body)
+
+		job := new(Job)
+		bytes := []byte(body)
+		err = json.Unmarshal(bytes, &job)
+		if err != nil {
+			log.Print(err)
+		}
+	}
 }
