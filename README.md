@@ -12,6 +12,9 @@ Probably not much tbh. It lets you keep the same calling semantics in your ruby 
 ## Usage:
 Given a redis server at 127.0.0.1:6379
 
+    # build it
+    go build
+
     # stuff some tasks into sidekiq
     ruby app.rb
     ruby app.rb
