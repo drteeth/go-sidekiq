@@ -5,18 +5,6 @@ Sidekiq.configure_client do |config|
   config.redis = { :namespace => 'x', :size => 1, :url => 'redis://127.0.0.1:6379' }
 end
 
-# Sidekiq server is multi-threaded so our Redis connection pool size defaults to concurrency (-c)
-Sidekiq.configure_server do |config|
-  config.redis = { :namespace => 'x', :url => 'redis://127.0.0.1:6379' }
-end
-
-# Start up sidekiq via
-# ./bin/sidekiq -r ./examples/por.rb
-# and then you can open up an IRB session like so:
-# irb -r ./examples/por.rb
-# where you can then say
-# PlainOldRuby.perform_async "like a dog", 3
-#
 class PlainOldRuby
   include Sidekiq::Worker
 
@@ -24,3 +12,5 @@ class PlainOldRuby
     # Go will take over
   end
 end
+
+PlainOldRuby.perform_async "like a dog", 5

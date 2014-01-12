@@ -7,24 +7,6 @@ import (
 	"log"
 )
 
-// {
-//   "retry": true,
-//   "queue": "default",
-//   "class": "PlainOldRuby",
-//   "args": ["like a dog",3],
-//   "jid": "f6e2ab138b6c591989ede8c4",
-//   "enqueued_at": 1389458108.727456
-// }
-
-type Job struct {
-	Retry       bool          `json:retry`
-	Queue       string        `json:queue`
-	Class       string        `json:class`
-	Args        []interface{} `json:args`
-	Jid         string        `json:jid`
-	Enqueued_at float64       `json:enqueued_at` //float32??
-}
-
 func connect() (redis.Conn, error) {
 	return redis.Dial("tcp", ":6379")
 }
@@ -33,37 +15,28 @@ const (
 	noTimeout = 0
 )
 
-func main() {
-	// Connect
+func ListenForJobs(jobs chan Job) {
 	conn, err := connect()
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer conn.Close()
 
-	// connect to redis
-	// watch the user provided queue (or the default queue)
-	// pop a job off and process it.
-	// put failing jobs back and decrement
+	fmt.Println("Waiting for jobs...")
 
-	// use blpop to get items
-	// pull from x:queue:default
-	// default queue ^^
 	for {
-		fmt.Println("waiting for redis...")
-		reply, err := redis.Values(conn.Do("blpop", "x:queue:default", 0))
-
+		// pop a value from the queue
+		reply, err := redis.Values(conn.Do("blpop", "x:queue:default", noTimeout))
 		if err != nil {
-			log.Printf("xxx %s\n", err)
+			log.Fatal(err)
 		}
 
+		// unpackage the reply
 		var queue string
 		var body string
 		if _, err := redis.Scan(reply, &queue, &body); err != nil {
 			log.Println(err)
 		}
-
-		fmt.Println(body)
 
 		job := new(Job)
 		bytes := []byte(body)
@@ -71,5 +44,36 @@ func main() {
 		if err != nil {
 			log.Print(err)
 		}
+
+		fmt.Printf("Found job: %s(%s)\n", job.Class, job.Jid)
+		jobs <- *job
 	}
+}
+
+func PerformJobs(jobs chan Job) {
+	workers := make(map[string]func(Job) Worker)
+
+	// register our worker
+	workers["PlainOldRuby"] = func(job Job) Worker {
+		h := Hardwork{&job, "fail", 0}
+		return &h
+	}
+
+	for {
+		job := <-jobs
+		createWorker := workers[job.Class]
+		worker := createWorker(job)
+		go worker.Perform()
+	}
+}
+
+func main() {
+	jobs := make(chan Job)
+	go ListenForJobs(jobs)
+	go PerformJobs(jobs)
+
+	// wait for user input
+	fmt.Println("Press Enter to Exit.")
+	var userInput string
+	fmt.Scanln(&userInput)
 }
