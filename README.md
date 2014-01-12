@@ -22,6 +22,6 @@ Given a redis server at 127.0.0.1:6379
     ruby app.rb
 
     # start up the go job processor
-    ./sidekiq-and-go
+    ./go-sidekiq
 
     # watch as go does work, queue some more jobs, stand back in amazement.
